@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>M4A → MP3 Converter</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; padding: 16px; }
+    button { padding: 10px 14px; }
+    #log { white-space: pre-wrap; background: #f5f5f7; padding: 10px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h2>M4A → MP3（端末内変換）</h2>
+
+  <input id="file" type="file" accept="audio/*,.m4a" />
+  <div style="margin:12px 0;">
+    <label>ビットレート：</label>
+    <select id="bitrate">
+      <option value="128k">128k（軽い）</option>
+      <option value="192k" selected>192k（おすすめ）</option>
+      <option value="320k">320k（重い）</option>
+    </select>
+    <button id="convert">変換</button>
+  </div>
+
+  <div id="log">準備中…</div>
+  <p><a id="download" style="display:none;">MP3をダウンロード</a></p>
+
+  <script type="module">
+    import { FFmpeg } from "https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js";
+    import { fetchFile } from "https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js";
+
+    const logEl = document.getElementById("log");
+    const fileEl = document.getElementById("file");
+    const bitrateEl = document.getElementById("bitrate");
+    const dlEl = document.getElementById("download");
+    const btn = document.getElementById("convert");
+
+    const ffmpeg = new FFmpeg();
+
+    function log(msg) { logEl.textContent = msg; }
+
+    ffmpeg.on("log", ({ message }) => {
+      const lines = (logEl.textContent + "\n" + message).split("\n");
+      logEl.textContent = lines.slice(-12).join("\n");
+    });
+
+    btn.onclick = async () => {
+      const f = fileEl.files?.[0];
+      if (!f) { log("ファイルを選んでください"); return; }
+
+      dlEl.style.display = "none";
+      log("ffmpeg読み込み中…（初回は重いです）");
+
+      if (!ffmpeg.loaded) {
+        await ffmpeg.load({
+          coreURL: "https://unpkg.com/@ffmpeg/core@0.12.6/dist/ffmpeg-core.js",
+          wasmURL: "https://unpkg.com/@ffmpeg/core@0.12.6/dist/ffmpeg-core.wasm",
+        });
+      }
+
+      const inName = "input.m4a";
+      const outName = "output.mp3";
+
+      log("入力を準備中…");
+      await ffmpeg.writeFile(inName, await fetchFile(f));
+
+      const br = bitrateEl.value;
+      log("変換中…（画面を閉じないでください）");
+
+      await ffmpeg.exec([
+        "-i", inName,
+        "-vn",
+        "-b:a", br,
+        "-ar", "44100",
+        outName
+      ]);
+
+      log("書き出し中…");
+      const data = await ffmpeg.readFile(outName);
+      const blob = new Blob([data.buffer], { type: "audio/mpeg" });
+      const url = URL.createObjectURL(blob);
+
+      dlEl.href = url;
+      dlEl.download = f.name.replace(/\.[^.]+$/, "") + ".mp3";
+      dlEl.textContent = "MP3をダウンロード";
+      dlEl.style.display = "inline-block";
+
+      log("完了！");
+    };
+
+    log("ファイルを選んで「変換」を押してください。");
+  </script>
+</body>
+</html>
