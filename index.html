@@ -37,6 +37,17 @@
     const dlEl = document.getElementById("download");
     const btn = document.getElementById("convert");
 
+    // ★ iPad Safari対策：ファイル選択を確実に検知
+    fileEl.addEventListener("change", () => {
+      const f = fileEl.files?.[0];
+      if (f) {
+        log(`選択済み: ${f.name}`);
+      } else {
+        log("ファイル未選択");
+      }
+    });
+
+
     const ffmpeg = new FFmpeg();
 
     function log(msg) { logEl.textContent = msg; }
